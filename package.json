@@ -1,0 +1,21 @@
+{
+  "name": "github-webhook-proxy",
+  "version": "1.0.0",
+  "description": "GitHub webhook proxy for CodeBuild - reduces org webhook count to 1",
+  "scripts": {
+    "build": "tsc",
+    "cdk": "cdk",
+    "deploy": "cdk deploy",
+    "synth": "cdk synth",
+    "diff": "cdk diff"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.150.0",
+    "constructs": "^10.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "@types/node": "^20.0.0",
+    "aws-cdk": "^2.150.0"
+  }
+}

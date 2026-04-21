@@ -1,0 +1,14 @@
+{
+  "targets": [
+    {
+      "name": "example-account1-team-alpha",
+      "payloadUrl": "https://codebuild.us-east-1.amazonaws.com/webhooks/trigger?t=eyJ...",
+      "secret": "codebuild-webhook-secret-1"
+    },
+    {
+      "name": "example-account2-team-beta",
+      "payloadUrl": "https://codebuild.ap-southeast-2.amazonaws.com/webhooks/trigger?t=eyJ...",
+      "secret": "codebuild-webhook-secret-2"
+    }
+  ]
+}
