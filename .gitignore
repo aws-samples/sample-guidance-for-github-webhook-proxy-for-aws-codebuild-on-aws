@@ -1,0 +1,10 @@
+*.js
+!lambda/**/*.js
+!lambda/**/*.mjs
+*.d.ts
+node_modules
+cdk.out
+.cdk.staging
+*.DS_Store
+cdk-outputs.json
+.env

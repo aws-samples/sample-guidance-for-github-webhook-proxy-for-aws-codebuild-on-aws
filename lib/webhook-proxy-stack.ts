@@ -1,3 +1,6 @@
+// Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+// SPDX-License-Identifier: MIT-0
+
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
 import * as apigateway from 'aws-cdk-lib/aws-apigateway';
@@ -5,6 +8,7 @@ import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as ssm from 'aws-cdk-lib/aws-ssm';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import { Construct } from 'constructs';
+import { NagSuppressions } from 'cdk-nag';
 import * as path from 'path';
 
 interface CodeBuildTarget {
@@ -57,6 +61,12 @@ export class WebhookProxyStack extends cdk.Stack {
     });
 
     // Lambda function
+    const lambdaLogGroup = new logs.LogGroup(this, 'LambdaLogGroup', {
+      logGroupName: '/aws/lambda/GitHubWebhookProxy',
+      retention: logs.RetentionDays.ONE_MONTH,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+    });
+
     const proxyFn = new lambda.Function(this, 'WebhookProxyFunction', {
       functionName: 'GitHubWebhookProxy',
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -69,7 +79,7 @@ export class WebhookProxyStack extends cdk.Stack {
         TARGET_LIST_PARAM: '/github-webhook-proxy/target-list',
         TARGET_PARAM_PREFIX: '/github-webhook-proxy/targets',
       },
-      logRetention: logs.RetentionDays.ONE_MONTH,
+      logGroup: lambdaLogGroup,
     });
 
     // Grant Lambda read access to secrets and parameters
@@ -81,7 +91,11 @@ export class WebhookProxyStack extends cdk.Stack {
       ],
     }));
 
-    // API Gateway
+    // API Gateway with access logging
+    const logGroup = new logs.LogGroup(this, 'ApiAccessLogs', {
+      retention: logs.RetentionDays.ONE_MONTH,
+    });
+
     const api = new apigateway.RestApi(this, 'WebhookApi', {
       restApiName: 'GitHub Webhook Proxy',
       description: 'Receives GitHub org webhooks and fans out to CodeBuild projects',
@@ -89,6 +103,9 @@ export class WebhookProxyStack extends cdk.Stack {
         stageName: 'prod',
         throttlingRateLimit: 100,
         throttlingBurstLimit: 200,
+        accessLogDestination: new apigateway.LogGroupLogDestination(logGroup),
+        accessLogFormat: apigateway.AccessLogFormat.jsonWithStandardFields(),
+        loggingLevel: apigateway.MethodLoggingLevel.INFO,
       },
     });
 
@@ -107,5 +124,45 @@ export class WebhookProxyStack extends cdk.Stack {
       value: `${props.targets.length}`,
       description: 'Number of CodeBuild targets registered',
     });
+
+    // cdk-nag suppressions for patterns that are acceptable in this context
+    NagSuppressions.addStackSuppressions(this, [
+      {
+        id: 'AwsSolutions-APIG1',
+        reason: 'Access logging is enabled via deployOptions.accessLogDestination',
+      },
+      {
+        id: 'AwsSolutions-APIG2',
+        reason: 'Request validation is handled by the Lambda function which validates the GitHub HMAC signature',
+      },
+      {
+        id: 'AwsSolutions-APIG4',
+        reason: 'This API receives GitHub webhook events which use HMAC signature authentication, not AWS auth',
+      },
+      {
+        id: 'AwsSolutions-COG4',
+        reason: 'Cognito authorizer is not applicable — GitHub authenticates via HMAC-SHA256 signatures',
+      },
+      {
+        id: 'AwsSolutions-IAM4',
+        reason: 'Lambda basic execution managed policy is acceptable for CloudWatch Logs access',
+      },
+      {
+        id: 'AwsSolutions-IAM5',
+        reason: 'Wildcard is scoped to /github-webhook-proxy/* SSM parameter path prefix',
+      },
+      {
+        id: 'AwsSolutions-SMG4',
+        reason: 'Secret rotation is not applicable — the GitHub webhook secret is a shared static secret',
+      },
+      {
+        id: 'AwsSolutions-APIG3',
+        reason: 'WAF is recommended as a next step but not required for this Guidance deployment',
+      },
+      {
+        id: 'AwsSolutions-L1',
+        reason: 'Node.js 20.x is the latest supported Lambda runtime at time of publishing',
+      },
+    ]);
   }
 }

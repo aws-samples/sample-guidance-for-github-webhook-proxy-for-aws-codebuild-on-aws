@@ -1,7 +1,8 @@
 {
-  "name": "github-webhook-proxy",
+  "name": "guidance-for-github-webhook-proxy-for-aws-codebuild-on-aws",
   "version": "1.0.0",
-  "description": "GitHub webhook proxy for CodeBuild - reduces org webhook count to 1",
+  "description": "Guidance for GitHub Webhook Proxy for AWS CodeBuild on AWS",
+  "license": "MIT-0",
   "scripts": {
     "build": "tsc",
     "cdk": "cdk",
@@ -11,6 +12,7 @@
   },
   "dependencies": {
     "aws-cdk-lib": "^2.150.0",
+    "cdk-nag": "^2.28.0",
     "constructs": "^10.3.0"
   },
   "devDependencies": {
