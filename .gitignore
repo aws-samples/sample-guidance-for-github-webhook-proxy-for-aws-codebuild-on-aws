@@ -8,3 +8,7 @@ cdk.out
 *.DS_Store
 cdk-outputs.json
 .env
+
+# Design Inspector artifacts
+*.xml
+preflabel-iri-cache.json
