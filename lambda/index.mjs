@@ -51,7 +51,7 @@ async function getTargets() {
   }));
   const targetNames = JSON.parse(listResp.Parameter.Value);
 
-  // Fetch all target parameters in batch
+  // Fetch all target parameters in batch (WithDecryption for SecureString secrets)
   const prefix = process.env.TARGET_PARAM_PREFIX;
   const allParams = [];
   let nextToken;
@@ -59,6 +59,7 @@ async function getTargets() {
     const resp = await ssmClient.send(new GetParametersByPathCommand({
       Path: `${prefix}/`,
       Recursive: true,
+      WithDecryption: true,
       NextToken: nextToken,
     }));
     allParams.push(...(resp.Parameters || []));
@@ -95,7 +96,11 @@ function validateGitHubSignature(payload, signatureHeader, secret) {
 
 /**
  * Sign a payload with a CodeBuild webhook secret and forward it.
+ * Retries up to 2 times on transient 5xx failures with exponential backoff.
  */
+const MAX_RETRIES = 2;
+const RETRY_BASE_DELAY_MS = 500;
+
 async function forwardToTarget(target, body, githubHeaders) {
   const signature = createHmac('sha256', target.secret)
     .update(body)
@@ -119,16 +124,31 @@ async function forwardToTarget(target, body, githubHeaders) {
     }
   }
 
-  const resp = await fetch(target.payloadUrl, {
-    method: 'POST',
-    headers,
-    body,
-  });
+  let lastResp;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    lastResp = await fetch(target.payloadUrl, {
+      method: 'POST',
+      headers,
+      body,
+    });
+
+    // Success or client error (4xx) — don't retry
+    if (lastResp.ok || lastResp.status < 500) {
+      break;
+    }
+
+    // Transient 5xx — retry with exponential backoff
+    if (attempt < MAX_RETRIES) {
+      const delay = RETRY_BASE_DELAY_MS * Math.pow(2, attempt);
+      console.warn(`Target ${target.name} returned ${lastResp.status}, retrying in ${delay}ms (attempt ${attempt + 1}/${MAX_RETRIES})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
 
   return {
     name: target.name,
-    status: resp.status,
-    ok: resp.ok,
+    status: lastResp.status,
+    ok: lastResp.ok,
   };
 }
 

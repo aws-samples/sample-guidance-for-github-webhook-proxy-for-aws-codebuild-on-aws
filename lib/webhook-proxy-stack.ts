@@ -34,6 +34,7 @@ export class WebhookProxyStack extends cdk.Stack {
     });
 
     // Store each CodeBuild target config in SSM Parameter Store
+    // URLs use standard StringParameter; secrets use SecureString (KMS-encrypted)
     const targetNames: string[] = [];
     for (const target of props.targets) {
       const paramPrefix = `/github-webhook-proxy/targets/${target.name}`;
@@ -44,10 +45,16 @@ export class WebhookProxyStack extends cdk.Stack {
         description: `CodeBuild webhook URL for ${target.name}`,
       });
 
-      new ssm.StringParameter(this, `Target-${target.name}-secret`, {
-        parameterName: `${paramPrefix}/secret`,
-        stringValue: target.secret,
-        description: `CodeBuild webhook secret for ${target.name}`,
+      // Use SecureString via CfnParameter for KMS-encrypted storage at rest.
+      // CDK L2 StringParameter does not support SecureString, so we use L1.
+      new cdk.CfnResource(this, `Target-${target.name}-secret`, {
+        type: 'AWS::SSM::Parameter',
+        properties: {
+          Name: `${paramPrefix}/secret`,
+          Type: 'SecureString',
+          Value: target.secret,
+          Description: `CodeBuild webhook secret for ${target.name}`,
+        },
       });
 
       targetNames.push(target.name);
@@ -88,6 +95,13 @@ export class WebhookProxyStack extends cdk.Stack {
       actions: ['ssm:GetParameter', 'ssm:GetParametersByPath'],
       resources: [
         `arn:aws:ssm:${this.region}:${this.account}:parameter/github-webhook-proxy/*`,
+      ],
+    }));
+    // Allow decryption of SecureString parameters (uses the default AWS-managed SSM key)
+    proxyFn.addToRolePolicy(new cdk.aws_iam.PolicyStatement({
+      actions: ['kms:Decrypt'],
+      resources: [
+        `arn:aws:kms:${this.region}:${this.account}:alias/aws/ssm`,
       ],
     }));
 

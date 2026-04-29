@@ -113,6 +113,11 @@ Edit `config/targets.json`:
 }
 ```
 
+> **⚠️ Security Note:** `config/targets.json` contains sensitive webhook secrets. Do **not** commit real secrets to source control. For production use, consider:
+> - Using environment-specific config files excluded via `.gitignore`
+> - Injecting secrets at deploy time from a secrets manager or CI/CD pipeline variables
+> - Using CDK context variables or a `.env` file (already in `.gitignore`)
+
 ### 4. Set your GitHub webhook secret
 
 Choose a strong secret that you will also configure in GitHub:
